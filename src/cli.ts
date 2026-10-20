@@ -19,13 +19,7 @@ program
 program.command('init')
   .description('Initialize checkdiff config')
   .action(async () => {
-    const { writeFile } = await import('fs/promises');
-    const { default: example } = await import('../../checkdiff.config.example.js', { assert: { type: 'json' } }).catch(async () => {
-      const fs = await import('fs');
-      return { default: fs.readFileSync('checkdiff.config.example.js','utf8') };
-    });
     console.log(pc.green('Creating checkdiff.config.js'));
-    // copy example
     const { copyFile } = await import('fs/promises');
     try { await copyFile('checkdiff.config.example.js', 'checkdiff.config.js'); } catch {}
     console.log(pc.cyan('Edit checkdiff.config.js to customize mappings'));

@@ -1,4 +1,4 @@
-import simpleGit from 'simple-git';
+import { simpleGit } from 'simple-git';
 export type DiffResult = { mode: 'git', files: string[], raw: string, base: string, head: string };
 
 export async function collectDiff(base='main', head='HEAD'): Promise<DiffResult> {

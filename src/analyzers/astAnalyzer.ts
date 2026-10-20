@@ -1,5 +1,5 @@
 import { parse } from '@babel/parser';
-import traverse from '@babel/traverse';
+// import traverse from '@babel/traverse';
 
 export function analyzeJsDiff(diffContent: string) {
   // MVP: detect changed functions/routes
