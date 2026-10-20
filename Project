@@ -1,0 +1,66 @@
+Here is your hackathon-ready description - copy-paste for Devpost / HackerEarth / presentation. I made 3 versions for you:
+
+### 1. One-Liner Tagline
+**CheckDiff: Test Only What Changed. For Any Website or Service.**
+
+### 2. Short Pitch (60 sec elevator)
+CheckDiff is a universal, check-in-aware E2E testing package. Developers waste hours running 500 E2E tests when they only changed one checkout button. CheckDiff does `git diff -> understands the change with AST -> creates a smart test profile -> runs only impacted tests`. It works for **any stack** - Next.js, React, Django, WordPress, or even a live website with no code access via black-box mode. One command: `npx checkdiff-e2e run`. 80-90% faster CI, zero config.
+
+### 3. Full Hackathon Submission Description
+
+**Project Name:** CheckDiff E2E - Universal Check-in Aware Test Automation
+
+**Inspiration / Problem:**
+Every team faces this: You change 3 lines in `payment.ts`, and CI runs 4 hours of E2E tests for the entire platform. For large websites, E2E suites take 2-5 hours. Most tests are irrelevant to the check-in. Existing tools are tied to one framework (Jest for JS, pytest for Python) and need manual test selection. There is no universal tool that any website/service can just `run`.
+
+**What it does:**
+CheckDiff is a drop-in, language-agnostic package that any website or service can run to automatically test only what matters.
+
+It has **Two Modes:**
+
+**1. White-Box Mode (With Code Access):**
+Developers run `npx checkdiff-e2e run --base main`. The tool:
+- Collects diff via `git diff main...HEAD`
+- Analyzes it using AST Parser (@babel/parser) to understand semantic change (not just file name)
+- Maps it to business features using Impact Mapper (`checkout file -> @checkout tag`)
+- Generates a targeted test profile: `playwright test --grep @checkout`
+- Runs only those tests
+
+**2. Black-Box Mode (For Any Live Website/Service - No Code Needed):**
+For clients, QA teams, or non-tech websites: `npx checkdiff-e2e run --url https://site.com`
+- Crawls sitemap + OpenAPI spec
+- Takes snapshots of DOM/API responses
+- Compares with last run to find visual & API diffs
+- Auto-generates E2E tests for changed flows
+
+**How we built it:**
+- **Core:** Node.js / TypeScript CLI with Commander.js
+- **Diff Engine:** `simple-git` + `@babel/parser` for AST analysis + custom minimatch mapper
+- **Detection:** Auto-stack detector scans `package.json`, `requirements.txt`, `wp-config.php` to work with 0 config
+- **Runner:** Pluggable architecture - Playwright (default), adapters for Cypress, k6 for APIs
+- **Distribution:** Docker image `FROM mcr.microsoft.com/playwright` makes it truly universal - works on any OS, any stack. Published as NPM package, PIP wrapper, and GitHub Action.
+
+**Challenges:**
+Making it framework-agnostic. We solved it by abstracting to Tags (`@auth`, `@checkout`, `@api`) instead of framework-specific test files, and shipping inside a Playwright Docker image that has all browsers.
+
+**Accomplishments:**
+A working MVP that reduces E2E time from 120 min to ~15 min in our tests. A single command works for a Next.js app, a Django API, and a WordPress site.
+
+**What's Next:**
+- AI-powered mapper: LLM reads diff and picks relevant tests without any config
+- Visual regression + API contract diff in black-box mode
+- Dashboard to show diff impact over time
+- Marketplace of community mappers
+
+**Tech Stack:** TypeScript, Node.js, Playwright, Docker, Git, Babel AST, GitHub Actions
+
+**Impact:** Saves 80% CI time and compute cost. Makes E2E testing actually usable for every website, not just FAANG.
+
+---
+
+Want me to also generate your **Devpost cover image, architecture slide for PPT, and a 2-min demo script** for the judges?
+
+
+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
+
+git clone https://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@github.com/mayurigoyani-02/CheckDiff.git

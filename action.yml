@@ -1,0 +1,15 @@
+name: 'CheckDiff E2E'
+description: 'Universal check-in aware E2E testing for any website/service'
+branding:
+  icon: 'check-square'
+  color: 'blue'
+inputs:
+  base-branch:
+    description: 'Base branch to diff against'
+    default: 'main'
+  url:
+    description: 'Live URL for black-box mode'
+    required: false
+runs:
+  using: 'docker'
+  image: 'Dockerfile'

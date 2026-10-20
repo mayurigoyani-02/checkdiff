@@ -1,0 +1,45 @@
+
+### Key files you got:
+
+**1. CLI Entry - works anywhere**
+- `src/cli.ts` - `checkdiff run --base main` or `checkdiff run --url https://site.com`
+- `src/detectors/stackDetector.ts` - auto-detects Next.js / React / Express / Django / WordPress / Shopify
+- `src/collectors/gitCollector.ts` - git diff engine
+
+**2. Universal Adapters**
+- `src/mapper/impactMapper.ts` - maps `src/api/payment/**` -> `@payment`
+- `src/generator/profileGenerator.ts` - creates `playwright test --grep @payment`
+- `src/runners/playwrightRunner.ts` - pluggable runner (add Cypress/API later)
+
+**3. Distribution Ready**
+- `Dockerfile` - `FROM mcr.microsoft.com/playwright` -> works for ANY website
+- `action.yml` - GitHub Action: `uses: checkdiff/action@v1`
+- `package.json` - bin: `checkdiff`
+
+### How to run it right now:
+
+```bash
+# 1. Unzip
+unzip checkdiff-e2e.zip && cd checkdiff-e2e
+
+# 2. Install & build
+npm install
+npm run build
+
+# 3. Test on YOUR repo (white-box)
+node dist/cli.js run --base main --dry
+
+# 4. Test ANY live website (black-box)
+node dist/cli.js run --url https://example.com --dry
+
+# 5. Publish as universal tool
+docker build -t checkdiff/checkdiff .
+npm publish
+```
+
+**Next steps I recommend:**
+
+1.  Add AI mode: When `CHECKDIFF_AI_KEY` is set, send diff + list of `e2e/*.spec.ts` to LLM to pick relevant tests - this makes it 10x smarter than regex mapping.
+2.  Add `apiRunner` for services - if no browser, just test OpenAPI endpoints that changed.
+
+Want me to also generate the `apiRunner.ts` for pure backend services and the GitHub Action workflow that auto-comments the test profile on PRs?
