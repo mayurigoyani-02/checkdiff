@@ -13,38 +13,14 @@ cd agents/api && npm install && npm run dev
 cd ../api  # from website to api
 ```
 
-**Step 1: Install Playwright**
-```bash
-npm install -D @playwright/test
-npx playwright install
-```
-
-**Step 2: Init Playwright (API mode)**
-```bash
-# Don't run init, create config manually for API
-```
-Create `playwright.config.ts`:
-```ts
-import { defineConfig } from '@playwright/test';
-export default defineConfig({
-  testDir: './e2e',
-  use: { baseURL: 'http://localhost:4000' },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:4000/health',
-    reuseExistingServer: !process.env.CI
-  }
-});
-```
-
-**Step 3: Install CheckDiff**
+**Step 1: Install CheckDiff**
 ```bash
 npm install -D checkdiff-e2e
 # OR if using local package from before:
 npm install -D /path/to/checkdiff-e2e - C:\Hackathon\CheckDiff\agents\api> npm install -D ../../
 ```
 
-**Step 4: Create API CheckDiff Config**
+**Step 2: Create API CheckDiff Config**
 Create `checkdiff.config.js` in `agents/api/`:
 ```js
 export default {
@@ -67,7 +43,7 @@ export default {
 ```
 Note: Since your API is `src/index.js` (single file), adjust mapping if you split into routes later.
 
-**Step 5: Create API E2E Tests**
+**Step 3: Create API E2E Tests**
 Create `e2e/auth.spec.ts`:
 ```ts
 import { test, expect } from '@playwright/test';
@@ -106,7 +82,7 @@ test('create payment @payment @api @critical', async ({ request }) => {
 });
 ```
 
-**Step 6: Test White-Box Mode**
+**Step 4: Test White-Box Mode**
 ```bash
 # Make fake API change
 echo "// payment fix" >> src/index.js

@@ -7,39 +7,7 @@ cd agents/website && npm install && npm run dev
 ```bash
 cd agents/website
 ```
-
-**Step 1: Install Playwright**
-```bash
-npm install -D @playwright/test
-npx playwright install
-```
-
-**Step 2: Init Playwright**
-```bash
-npx playwright init
-# When it asks:
-# ? Where to put e2e tests: e2e
-# ? Add GitHub Action: No (we will add custom later)
-# ? Install browsers: Yes
-```
-This creates `playwright.config.ts` and `e2e/` folder. Delete the example.
-
-**Step 3: Configure Playwright for Website**
-Edit `playwright.config.ts`:
-```ts
-import { defineConfig } from '@playwright/test';
-export default defineConfig({
-  testDir: './e2e',
-  use: { baseURL: 'http://localhost:3000' },
-  webServer: {
-    command: 'npm run dev',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI
-  }
-});
-```
-
-**Step 4: Install CheckDiff**
+**Step 1: Install CheckDiff**
 ```bash
 npm install -D checkdiff-e2e
 # OR if using local package from before:
@@ -47,7 +15,7 @@ npm install -D /path/to/checkdiff-e2e -
 npm install -D ../../
 ```
 
-**Step 5: Create Website CheckDiff Config**
+**Step 2: Create Website CheckDiff Config**
 Create `checkdiff.config.js` in `agents/website/`:
 ```js
 export default {
@@ -71,7 +39,7 @@ export default {
 }
 ```
 
-**Step 6: Create Your First E2E Test (with tags)**
+**Step 3: Create Your First E2E Test (with tags)**
 Create `e2e/checkout.spec.ts`:
 ```ts
 import { test, expect } from '@playwright/test';
@@ -98,7 +66,7 @@ test('login page @auth @website', async ({ page }) => {
 });
 ```
 
-**Step 7: Test White-Box Mode**
+**Step 4: Test White-Box Mode**
 ```bash
 # Make a fake change
 echo "// change" >> pages/checkout/index.tsx
