@@ -1,5 +1,8 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.minimatch = minimatch;
 // tiny glob matcher without extra dep
-export function minimatch(file, pattern) {
+function minimatch(file, pattern) {
     if (pattern.includes('**')) {
         const base = pattern.split('**')[0];
         return file.startsWith(base);

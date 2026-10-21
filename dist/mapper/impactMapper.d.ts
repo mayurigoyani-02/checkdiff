@@ -1,19 +1,12 @@
-import type { DiffResult } from '../collectors/gitCollector.js';
-type AnyDiff = DiffResult | {
-    mode: 'black-box';
-    url: string;
-    files: string[];
-    raw?: string;
-};
-interface MappingConfig {
-    [glob: string]: string[];
-}
-interface ImpactResult {
+export interface ImpactResult {
     tags: string[];
     files: string[];
     reason: string;
-    command?: string;
-    stack?: any;
+    command: string;
+    affectedTests?: string[];
 }
-export declare function mapImpact(diff: AnyDiff, mapping: MappingConfig, stack?: any): ImpactResult;
-export {};
+export declare function mapImpact(diff: any, opts: {
+    rootDir: string;
+    ai?: boolean;
+    verbose?: boolean;
+}): Promise<ImpactResult>;

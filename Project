@@ -61,3 +61,11 @@ A working MVP that reduces E2E time from 120 min to ~15 min in our tests. A sing
 Want me to also generate your **Devpost cover image, architecture slide for PPT, and a 2-min demo script** for the judges?
 
 This is perfect for your hackathon: You can say "Each agent is autonomous - website team and API team can deploy and test independently, but CheckDiff orchestrator understands cross-agent dependencies."
+
+1. CLI calls gitCollector
+       ↓
+2. gitCollector -> returns changed files
+       ↓
+3. impactMapper (uses those files) -> returns tags
+       ↓
+4. testRunner -> runs `npx playwright test --grep tags`

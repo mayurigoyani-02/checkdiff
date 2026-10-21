@@ -1,56 +1,39 @@
-export function mapImpact(diff, mapping, stack) {
-    // Black-box mode - no git
-    if (diff.mode === 'black-box') {
-        const blackBoxDiff = diff;
-        return {
-            tags: ['@blackbox'],
-            files: [],
-            reason: `Black-box crawl of ${blackBoxDiff.url}`,
-            command: 'npx playwright test --grep @blackbox',
-            stack
-        };
-    }
-    // Git mode
-    const files = diff.files || [];
-    // If 0 files, fallback to critical
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.mapImpact = mapImpact;
+// src/mapper/impactMapper.ts
+const graphBuilder_1 = require("../analyzer/graphBuilder");
+const impactAnalyzer_1 = require("../ai/impactAnalyzer");
+async function mapImpact(diff, opts) {
+    let files = (diff.files || []).filter((f) => !/package-lock|yarn\.lock|README|\.last-run|test-results|node_modules|\.git/.test(f));
     if (files.length === 0) {
-        return {
-            tags: ['@critical'],
-            files: [],
-            reason: 'No changed files mapped - fallback to critical tests',
-            command: 'npx playwright test --grep @critical',
-            stack
-        };
+        return { tags: [], files: [], reason: 'Only ignored files (README, lock files, etc)', command: 'echo "No tests needed"' };
     }
-    // Simple mapping
-    const tagsSet = new Set();
-    for (const file of files) {
-        let matched = false;
-        for (const [pattern, tags] of Object.entries(mapping)) {
-            const cleanPattern = pattern.replace('**', '').replace('*', '');
-            if (file.includes(cleanPattern) || file.match(pattern.replace(/\*/g, '.*'))) {
-                tags.forEach(t => tagsSet.add(t));
-                matched = true;
-            }
-        }
-        if (!matched) {
-            tagsSet.add('@all');
+    // Layer 1: Graph + dynamic tag extraction (no hardcoding)
+    const graphResult = await (0, graphBuilder_1.findAffectedTests)(files, opts.rootDir);
+    let tags = [...new Set(graphResult.affected.flatMap(t => t.tags))];
+    // Layer 2: AI refinement if enabled
+    if (opts.ai) {
+        const aiResult = await (0, impactAnalyzer_1.aiImpact)(files, diff.diffContent || '', opts.rootDir);
+        if (aiResult.tags.length > 0) {
+            tags = aiResult.tags;
+            graphResult.reason = `${graphResult.reason} | AI: ${aiResult.reason} (conf: ${aiResult.confidence})`;
         }
     }
-    const tags = Array.from(tagsSet);
-    let command = '';
-    if (tags.includes('@all') || tags.length === 0) {
-        command = 'npx playwright test';
+    if (tags.length === 0) {
+        // If we changed files but found no matching tests, run @critical as safety
+        tags = ['@critical'];
+        graphResult.reason += ' | No direct match, fallback to @critical';
     }
-    else {
-        const grepPattern = tags.join('|');
-        command = `npx playwright test --grep "${grepPattern}"`;
-    }
+    // NEVER return @all with grep "all" - return actual tests
+    const command = tags.includes('@all')
+        ? 'npx playwright test'
+        : `npx playwright test --grep "${tags.join('|')}"`;
     return {
         tags,
         files,
-        reason: `Mapped ${files.length} files to ${tags.join(', ')}`,
+        reason: graphResult.reason,
         command,
-        stack
+        affectedTests: graphResult.affected.map(t => t.path)
     };
 }

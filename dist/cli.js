@@ -1,71 +1,114 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
-import pc from 'picocolors';
-import ora from 'ora';
-import { collectDiff } from './collectors/gitCollector.js';
-import { detectStack } from './detectors/stackDetector.js';
-import { mapImpact } from './mapper/impactMapper.js';
-import { generateProfile } from './generator/profileGenerator.js';
-import { runPlaywright } from './runners/playwrightRunner.js';
-import { loadConfig } from './utils/config.js';
-const program = new Command();
+"use strict";
+var __createBinding = (this && this.__createBinding) || (Object.create ? (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    var desc = Object.getOwnPropertyDescriptor(m, k);
+    if (!desc || ("get" in desc ? !m.__esModule : desc.writable || desc.configurable)) {
+      desc = { enumerable: true, get: function() { return m[k]; } };
+    }
+    Object.defineProperty(o, k2, desc);
+}) : (function(o, m, k, k2) {
+    if (k2 === undefined) k2 = k;
+    o[k2] = m[k];
+}));
+var __setModuleDefault = (this && this.__setModuleDefault) || (Object.create ? (function(o, v) {
+    Object.defineProperty(o, "default", { enumerable: true, value: v });
+}) : function(o, v) {
+    o["default"] = v;
+});
+var __importStar = (this && this.__importStar) || (function () {
+    var ownKeys = function(o) {
+        ownKeys = Object.getOwnPropertyNames || function (o) {
+            var ar = [];
+            for (var k in o) if (Object.prototype.hasOwnProperty.call(o, k)) ar[ar.length] = k;
+            return ar;
+        };
+        return ownKeys(o);
+    };
+    return function (mod) {
+        if (mod && mod.__esModule) return mod;
+        var result = {};
+        if (mod != null) for (var k = ownKeys(mod), i = 0; i < k.length; i++) if (k[i] !== "default") __createBinding(result, mod, k[i]);
+        __setModuleDefault(result, mod);
+        return result;
+    };
+})();
+Object.defineProperty(exports, "__esModule", { value: true });
+// src/cli.ts
+const commander_1 = require("commander");
+const index_1 = require("./index");
+const program = new commander_1.Command();
 program
     .name('checkdiff')
-    .description('Universal check-in aware E2E testing for any website/service')
-    .version('1.0.0');
-program.command('init')
-    .description('Initialize checkdiff config')
-    .action(async () => {
-    console.log(pc.green('Creating checkdiff.config.js'));
-    const { copyFile } = await import('fs/promises');
-    try {
-        await copyFile('checkdiff.config.example.js', 'checkdiff.config.js');
-    }
-    catch { }
-    console.log(pc.cyan('Edit checkdiff.config.js to customize mappings'));
-});
-program.command('run')
-    .description('Run diff-aware E2E tests')
-    .option('--base <branch>', 'Base branch/sha', 'main')
-    .option('--head <branch>', 'Head branch/sha', 'HEAD')
-    .option('--url <url>', 'Black-box mode: test live URL')
-    .option('--dry', 'Dry run: show what would be tested')
+    .description('AI-powered E2E test impact analysis - run only tests affected by your changes')
+    .version('2.0.0');
+program
+    .command('run')
+    .description('Run impacted E2E tests based on git diff')
+    .option('--base <branch>', 'Base branch to compare against', 'origin/main')
+    .option('--head <branch>', 'Head to compare', 'HEAD')
+    .option('--ai', 'Enable AI semantic analysis (requires CHECKDIFF_AI_KEY)', false)
+    .option('--dry', 'Dry run - show impact without running tests', false)
+    .option('--verbose', 'Verbose logging', false)
+    .option('--all', 'Force run all tests (bypass impact analysis)', false)
     .action(async (opts) => {
-    const spinner = ora('Detecting project stack...').start();
-    const config = await loadConfig();
-    const stack = await detectStack();
-    spinner.succeed(`Detected stack: ${pc.bold(stack.type)} (${stack.framework})`);
-    let diff;
-    if (opts.url) {
-        spinner.start('Running black-box crawl...');
-        // For MVP, black-box delegates to visual/API snapshot diff
-        const diff = {
-            mode: 'black-box',
-            url: opts.url,
-            files: [],
-            tags: ['@blackbox']
-        };
-        spinner.succeed(`Black-box target: ${opts.url}`);
+    try {
+        if (opts.all) {
+            console.log('▶ Running: npx playwright test (forced --all)\n');
+            const { runTests } = await Promise.resolve().then(() => __importStar(require('./runner/testRunner')));
+            await runTests('npx playwright test', { verbose: opts.verbose });
+            return;
+        }
+        const result = await (0, index_1.checkdiff)({
+            base: opts.base,
+            head: opts.head,
+            ai: opts.ai,
+            dry: opts.dry,
+            verbose: opts.verbose
+        });
+        if (result.testResult && !result.testResult.success) {
+            process.exit(1);
+        }
     }
-    else {
-        spinner.start(`Collecting diff ${opts.base}...${opts.head}`);
-        diff = await collectDiff(opts.base, opts.head);
-        spinner.succeed(`Found ${diff.files.length} changed files`);
-        console.log(pc.dim(diff.files.slice(0, 10).join(', ')));
+    catch (err) {
+        console.error('\n❌ CheckDiff failed:', err.message);
+        if (opts.verbose)
+            console.error(err.stack);
+        process.exit(1);
     }
-    const impact = await mapImpact(diff, config, stack);
-    console.log(pc.yellow(`
-Impact: ${impact.tags.join(', ')}`));
-    console.log(pc.dim(`Reason: ${impact.reason}`));
-    const profile = await generateProfile(impact, config);
-    console.log(pc.green(`
-Test Profile: ${profile.testFiles.length} files, ${profile.tags.join(', ')}`));
-    if (opts.dry) {
-        console.log(profile);
-        return;
-    }
-    const results = await runPlaywright(profile, config);
-    console.log(results.summary);
-    process.exit(results.failed > 0 ? 1 : 0);
 });
-program.parse();
+program
+    .command('analyze')
+    .description('Analyze impact without running tests (alias for run --dry)')
+    .option('--base <branch>', 'Base branch', 'origin/main')
+    .option('--ai', 'Enable AI', false)
+    .option('--verbose', 'Verbose', false)
+    .action(async (opts) => {
+    await (0, index_1.checkdiff)({ base: opts.base, ai: opts.ai, dry: true, verbose: opts.verbose });
+});
+program
+    .command('graph')
+    .description('Show dependency graph for debugging')
+    .option('--verbose', 'Verbose', false)
+    .action(async (opts) => {
+    const { buildGraph } = await Promise.resolve().then(() => __importStar(require('./analyzer/graphBuilder')));
+    const graph = await buildGraph(process.cwd());
+    console.log(`Graph: ${graph.fileToImports.size} files`);
+    if (opts.verbose) {
+        for (const [file, imports] of graph.fileToImports.entries()) {
+            if (imports.size > 0) {
+                console.log(`\n${file}:`);
+                imports.forEach(i => console.log(`  -> ${i}`));
+            }
+        }
+    }
+});
+// Handle: npx checkdiff --base HEAD (without 'run' command) - backwards compat
+if (process.argv.length > 2 && !['run', 'analyze', 'graph'].includes(process.argv[2])) {
+    // Convert `npx checkdiff --base HEAD` to `npx checkdiff run --base HEAD`
+    const args = process.argv.slice(2);
+    program.parse(['node', 'cli.ts', 'run', ...args]);
+}
+else {
+    program.parse();
+}

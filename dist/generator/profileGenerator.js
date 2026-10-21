@@ -1,4 +1,7 @@
-export async function generateProfile(impact, config) {
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+exports.generateProfile = generateProfile;
+async function generateProfile(impact, config) {
     // MVP: converts tags to playwright --grep
     // In full version: read e2e/*.spec.ts and filter by tag in file content
     const tagGrep = impact.tags.map(t => t.replace('@', '')).join('|');
