@@ -1,37 +1,56 @@
-import { minimatch } from './minimatch.js';
-export async function mapImpact(diff, config, stack) {
-    const mapping = config?.mapping || {};
-    const tags = new Set();
-    let matchedFiles = [];
+export function mapImpact(diff, mapping, stack) {
+    // Black-box mode - no git
     if (diff.mode === 'black-box') {
-        return { tags: ['@blackbox'], files: [], reason: `Black-box crawl of ${diff.url}` };
+        const blackBoxDiff = diff;
+        return {
+            tags: ['@blackbox'],
+            files: [],
+            reason: `Black-box crawl of ${blackBoxDiff.url}`,
+            command: 'npx playwright test --grep @blackbox',
+            stack
+        };
     }
-    for (const file of diff.files) {
-        for (const [pattern, patternTags] of Object.entries(mapping)) {
-            if (minimatch(file, pattern)) {
-                matchedFiles.push(file);
-                patternTags.forEach(t => tags.add(t));
+    // Git mode
+    const files = diff.files || [];
+    // If 0 files, fallback to critical
+    if (files.length === 0) {
+        return {
+            tags: ['@critical'],
+            files: [],
+            reason: 'No changed files mapped - fallback to critical tests',
+            command: 'npx playwright test --grep @critical',
+            stack
+        };
+    }
+    // Simple mapping
+    const tagsSet = new Set();
+    for (const file of files) {
+        let matched = false;
+        for (const [pattern, tags] of Object.entries(mapping)) {
+            const cleanPattern = pattern.replace('**', '').replace('*', '');
+            if (file.includes(cleanPattern) || file.match(pattern.replace(/\*/g, '.*'))) {
+                tags.forEach(t => tagsSet.add(t));
+                matched = true;
             }
         }
-    }
-    // Fallback heuristics if no mapping
-    if (tags.size === 0) {
-        for (const f of diff.files) {
-            if (f.includes('auth'))
-                tags.add('@auth');
-            if (f.includes('checkout') || f.includes('payment') || f.includes('cart'))
-                tags.add('@checkout');
-            if (f.includes('api/'))
-                tags.add('@api');
-            if (f.match(/\.(css|scss)$/))
-                tags.add('@visual');
+        if (!matched) {
+            tagsSet.add('@all');
         }
-        if (tags.size === 0)
-            tags.add('@all');
+    }
+    const tags = Array.from(tagsSet);
+    let command = '';
+    if (tags.includes('@all') || tags.length === 0) {
+        command = 'npx playwright test';
+    }
+    else {
+        const grepPattern = tags.join('|');
+        command = `npx playwright test --grep "${grepPattern}"`;
     }
     return {
-        tags: Array.from(tags),
-        files: matchedFiles.length ? matchedFiles : diff.files,
-        reason: `Mapped ${diff.files.length} changed files to ${Array.from(tags).join(', ')}`
+        tags,
+        files,
+        reason: `Mapped ${files.length} files to ${tags.join(', ')}`,
+        command,
+        stack
     };
 }

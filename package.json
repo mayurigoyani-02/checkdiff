@@ -2,7 +2,9 @@
   "name": "checkdiff-e2e",
   "version": "1.0.0",
   "description": "Universal check-in aware E2E testing - test only what changed, for any website/service",
-  "bin": { "checkdiff": "./dist/cli.js" },
+  "bin": {
+    "checkdiff": "dist/cli.js"
+  },
   "main": "./dist/index.js",
   "type": "module",
   "scripts": {
@@ -27,5 +29,12 @@
     "@types/node": "^20.11.0",
     "@playwright/test": "^1.44.0"
   },
-  "keywords": ["e2e","testing","git-diff","playwright","ci","qa"]
+  "keywords": [
+    "e2e",
+    "testing",
+    "git-diff",
+    "playwright",
+    "ci",
+    "qa"
+  ]
 }

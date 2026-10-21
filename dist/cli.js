@@ -39,7 +39,12 @@ program.command('run')
     if (opts.url) {
         spinner.start('Running black-box crawl...');
         // For MVP, black-box delegates to visual/API snapshot diff
-        diff = { mode: 'black-box', url: opts.url, files: [], tags: ['@all'] };
+        const diff = {
+            mode: 'black-box',
+            url: opts.url,
+            files: [],
+            tags: ['@blackbox']
+        };
         spinner.succeed(`Black-box target: ${opts.url}`);
     }
     else {

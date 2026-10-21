@@ -41,16 +41,21 @@ program.command('run')
     if (opts.url) {
       spinner.start('Running black-box crawl...');
       // For MVP, black-box delegates to visual/API snapshot diff
-      diff = { mode: 'black-box', url: opts.url, files: [], tags: ['@all'] };
+      const diff = {
+        mode: 'black-box' as const,
+        url: opts.url,
+        files: [] as string[],
+        tags: ['@blackbox']
+      };
       spinner.succeed(`Black-box target: ${opts.url}`);
     } else {
       spinner.start(`Collecting diff ${opts.base}...${opts.head}`);
       diff = await collectDiff(opts.base, opts.head);
       spinner.succeed(`Found ${diff.files.length} changed files`);
       console.log(pc.dim(diff.files.slice(0,10).join(', ')));
-    }
-
-    const impact = await mapImpact(diff, config, stack);
+    }         
+    
+    const impact = await mapImpact(diff as any, config, stack);
     console.log(pc.yellow(`
 Impact: ${impact.tags.join(', ')}`));
     console.log(pc.dim(`Reason: ${impact.reason}`));
