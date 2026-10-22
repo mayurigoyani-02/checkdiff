@@ -1,4 +1,4 @@
-// src/utils/portResolver.ts - service passes port, not auto-find
+// src/utils/portResolver.ts - ALWAYS RETURNS OBJECT
 import fs from 'fs';
 import path from 'path';
 
@@ -15,8 +15,7 @@ export interface ServiceConfig {
 export function loadServiceConfig(rootDir: string): ServiceConfig {
   const configPaths = [
     path.join(rootDir, 'checkdiff.config.js'),
-    path.join(rootDir, 'checkdiff.config.ts'),
-    path.join(rootDir, 'api/checkdiff.config.js'),
+    path.join(rootDir, 'checkdiff.config.cjs'),
     path.join(process.cwd(), 'checkdiff.config.js'),
   ];
 
@@ -37,18 +36,41 @@ export function loadServiceConfig(rootDir: string): ServiceConfig {
 
 export function resolveApiPort(rootDir: string, cliPort?: number): { port: number; baseUrl: string; config: ServiceConfig } {
   const config = loadServiceConfig(rootDir);
+  const defaultResult = { port: 4000, baseUrl: 'http://localhost:4000', config };
 
-  // Priority: 1. CLI --port, 2. config file, 3. .env, 4. auto-detect, 5. 4000
-  if (cliPort) {
-    return { port: cliPort, baseUrl: `http://localhost:${cliPort}`, config };
+  try {
+    if (cliPort && !isNaN(cliPort)) {
+      return { port: cliPort, baseUrl: `http://localhost:${cliPort}`, config };
+    }
+
+    if (config.api?.baseUrl) {
+      try {
+        const url = new URL(config.api.baseUrl);
+        const p = url.port ? parseInt(url.port) : 4000;
+        return { port: isNaN(p) ? 4000 : p, baseUrl: config.api.baseUrl, config };
+      } catch {
+        return { port: config.api?.port || 4000, baseUrl: config.api.baseUrl, config };
+      }
+    }
+
+    if (config.api?.port && !isNaN(config.api.port)) {
+      return { port: config.api.port, baseUrl: `http://localhost:${config.api.port}`, config };
+    }
+
+    // .env check
+    const envPath = path.join(rootDir, '.env');
+    if (fs.existsSync(envPath)) {
+      const content = fs.readFileSync(envPath, 'utf8');
+      const match = content.match(/PORT\s*=\s*(\d+)/i);
+      if (match) {
+        const p = parseInt(match[1]);
+        if (!isNaN(p)) return { port: p, baseUrl: `http://localhost:${p}`, config };
+      }
+    }
+
+    return defaultResult;
+  } catch (e) {
+    console.log(`  ⚠ Port resolve error: ${e}, using default 4000`);
+    return defaultResult;
   }
-
-  if (config.api?.baseUrl) {
-    const url = new URL(config.api.baseUrl);
-    return { port: parseInt(url.port) || 4000, baseUrl: config.api.baseUrl, config };
-  }
-
-  if (config.api?.port) {
-    return { port: config.api.port, baseUrl: `http://localhost:${config.api.port}`, config };
-  }  
 }
