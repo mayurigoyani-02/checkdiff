@@ -1,84 +1,74 @@
-#!/usr/bin/env node
-// src/cli.ts
+// src/cli.ts - FIXED TYPES
 import { Command } from 'commander';
 import { checkdiff } from './index';
+import path from 'path';
 
 const program = new Command();
 
 program
   .name('checkdiff')
-  .description('AI-powered E2E test impact analysis - run only tests affected by your changes')
+  .description('Check diff and run impacted tests with profiles')
   .version('2.0.0');
 
 program
   .command('run')
-  .description('Run impacted E2E tests based on git diff')
-  .option('--base <branch>', 'Base branch to compare against', 'origin/main')
-  .option('--head <branch>', 'Head to compare', 'HEAD')
-  .option('--ai', 'Enable AI semantic analysis (requires CHECKDIFF_AI_KEY)', false)
-  .option('--dry', 'Dry run - show impact without running tests', false)
-  .option('--verbose', 'Verbose logging', false)
-  .option('--all', 'Force run all tests (bypass impact analysis)', false)
+  .option('--base <branch>', 'Base branch', 'main')
+  .option('--head <commit>', 'Head commit', 'HEAD')
+  .option('--root <dir>', 'Root dir', process.cwd())
+  .option('--ai', 'Enable AI impact', false)
+  .option('--dry', 'Dry run - don\'t execute tests', false)
+  .option('--verbose', 'Verbose logs', false)
+  .option('--generateProfiles', 'Generate auto test profiles', false)
+  .option('--port <port>', 'API port (service passes to CheckDiff)', '4000')
+  .option('--apiUrl <url>', 'Full API baseUrl, e.g. http://localhost:4000')
+  .option('--websitePort <port>', 'Website port', '3000')
   .action(async (opts) => {
     try {
-      if (opts.all) {
-        console.log('▶ Running: npx playwright test (forced --all)\n');
-        const { runTests } = await import('./runner/testRunner');
-        await runTests('npx playwright test', { verbose: opts.verbose });
-        return;
-      }
+      const rootDir = path.resolve(opts.root);    
+      const { resolveApiPort } = await import('./utils/portResolver');
+      const { port, baseUrl, config } = resolveApiPort(rootDir, opts.port ? parseInt(opts.port) : undefined);
+      // If apiUrl passed via CLI, override
+      const finalBaseUrl = opts.apiUrl || config.api?.baseUrl || baseUrl;
+      const finalPort = opts.apiUrl ? new URL(opts.apiUrl).port : port;
+      console.log(`  API: ${finalBaseUrl} (port ${finalPort}) - from ${opts.apiUrl ? 'CLI' : config.api ? 'checkdiff.config.js' : '.env/auto'}`);
 
       const result = await checkdiff({
         base: opts.base,
         head: opts.head,
+        rootDir,
+        apiUrl: finalBaseUrl,
+        port: finalPort as any,
         ai: opts.ai,
         dry: opts.dry,
-        verbose: opts.verbose
+        verbose: opts.verbose,
+        generateProfiles: opts.generateProfiles,
       });
 
+      console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
+      console.log(`\n▶ Running: ${result.command}`);
+
       if (result.testResult && !result.testResult.success) {
+        console.log(result.testResult.output);
         process.exit(1);
       }
-    } catch (err: any) {
-      console.error('\n❌ CheckDiff failed:', err.message);
-      if (opts.verbose) console.error(err.stack);
+    } catch (e: any) {
+      console.error('Error:', e.message);
+      if (opts.verbose) console.error(e.stack);
       process.exit(1);
     }
   });
 
 program
-  .command('analyze')
-  .description('Analyze impact without running tests (alias for run --dry)')
-  .option('--base <branch>', 'Base branch', 'origin/main')
-  .option('--ai', 'Enable AI', false)
-  .option('--verbose', 'Verbose', false)
+  .command('classify')
+  .option('--base <branch>', 'Base branch', 'main')
+  .option('--head <commit>', 'Head commit', 'HEAD')
+  .option('--root <dir>', 'Root dir', process.cwd())
   .action(async (opts) => {
-    await checkdiff({ base: opts.base, ai: opts.ai, dry: true, verbose: opts.verbose });
+    const { collectDiff } = await import('./collectors/gitCollector');
+    const { classifyChanges } = await import('./analyzer/changeClassifier');
+    const diff = await collectDiff({ base: opts.base, head: opts.head, rootDir: path.resolve(opts.root) });
+    const classified = classifyChanges(diff.files, path.resolve(opts.root));
+    console.table(classified);
   });
 
-program
-  .command('graph')
-  .description('Show dependency graph for debugging')
-  .option('--verbose', 'Verbose', false)
-  .action(async (opts) => {
-    const { buildGraph } = await import('./analyzer/graphBuilder');
-    const graph = await buildGraph(process.cwd());
-    console.log(`Graph: ${graph.fileToImports.size} files`);
-    if (opts.verbose) {
-      for (const [file, imports] of graph.fileToImports.entries()) {
-        if (imports.size > 0) {
-          console.log(`\n${file}:`);
-          imports.forEach(i => console.log(`  -> ${i}`));
-        }
-      }
-    }
-  });
-
-// Handle: npx checkdiff --base HEAD (without 'run' command) - backwards compat
-if (process.argv.length > 2 && !['run', 'analyze', 'graph'].includes(process.argv[2])) {
-  // Convert `npx checkdiff --base HEAD` to `npx checkdiff run --base HEAD`
-  const args = process.argv.slice(2);
-  program.parse(['node', 'cli.ts', 'run', ...args]);
-} else {
-  program.parse();
-}
+program.parse();

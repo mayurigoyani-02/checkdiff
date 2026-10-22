@@ -16,7 +16,7 @@ function exec(cmd: string): string {
   }
 }
 
-export async function collectDiff(opts: { base: string; head: string; verbose?: boolean }): Promise<DiffResult> {
+export async function collectDiff(opts: { base: string; head?: string; rootDir?: string; verbose?: boolean }) {
   const { base, head } = opts;
   
   let files: string[] = [];

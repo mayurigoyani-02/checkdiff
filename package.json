@@ -1,5 +1,5 @@
 {
-  "name": "@mayurigoyani-02/checkdiff-e2e",
+  "name": "checkdiff",
   "version": "1.0.0",
   "description": "Universal check-in aware E2E testing - test only what changed, for any website/service",
   "bin": { "checkdiff": "./dist/cli.js" },
