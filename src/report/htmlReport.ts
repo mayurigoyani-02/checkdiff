@@ -18,6 +18,8 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
   const total = executionResults.length;
   const passed = executionResults.filter(r => r.success).length;
   const failed = total - passed;
+  const ctx: any = (result as any).context;
+  const diff: any = (result as any).diff;
 
   const html = `<!DOCTYPE html>
 <html>
@@ -47,6 +49,8 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
     <h1>🔍 CheckDiff Test Report</h1>
     <p>API: ${result.apiUrl} | Generated: ${new Date().toLocaleString()}</p>
     <p>Command: <code>${result.command}</code></p>
+    ${diff ? `<p>Diff: <code>${diff.source || 'git'}</code> — base <code>${diff.base}</code> ... head <code>${String(diff.head).slice(0, 12)}</code> — ${diff.files.length} file(s)${diff.pr ? ` — <a style="color:#fff;text-decoration:underline" href="${diff.pr.url}" target="_blank">PR #${diff.pr.number}: ${diff.pr.title}</a> ${diff.repo ? `(${diff.repo})` : ''}` : ''}${diff.repo && !diff.pr ? ` — ${diff.repo}` : ''}</p>` : ''}
+    ${diff?.pr?.linkedIssueNumbers?.length ? `<p>Linked Issues: ${diff.pr.linkedIssueNumbers.map((n: number) => `<a style="color:#fff;text-decoration:underline" href="https://github.com/${diff.repo}/issues/${n}" target="_blank">#${n}</a>`).join(', ')}</p>` : ''}
   </div>
 
   <div class="stats">
@@ -78,6 +82,26 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
         </div>
       `).join('')}
     </div>
+  </div>
+
+  <div class="card">
+    <h3>🧠 Work-Item Context & Learned Knowledge</h3>
+    ${ctx ? `
+      <p>Work items: ${ctx.workItems.length} | Learned areas: ${ctx.knowledgeAreas} | Runs: ${ctx.totalRuns} | Gaps: ${ctx.gaps.length}</p>
+      ${(ctx.workItems || []).map((w: any) => `
+        <div style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
+          <strong>${w.source}:${w.id}</strong> — ${w.title || ''}
+          ${w.url ? `<a class="btn" href="${w.url}" target="_blank">Open</a>` : ''}
+          ${(w.acceptanceCriteria || []).length ? `<br><small>Acceptance: ${(w.acceptanceCriteria || []).join(' | ').slice(0, 400)}</small>` : ''}
+        </div>
+      `).join('')}
+      <h4>⚠ Gaps</h4>
+      ${(ctx.gaps || []).length ? (ctx.gaps || []).map((g: any) => `
+        <div style="margin:8px 0; padding:10px; background:#2a2a2a; border-radius:6px; border-left:3px solid ${g.severity === 'high' ? '#ef4444' : g.severity === 'medium' ? '#f59e0b' : '#3b82f6'};">
+          <strong>[${g.severity}] ${g.category}</strong><br>${g.message}<br><small>Suggestion: ${g.suggestion}</small>
+        </div>
+      `).join('') : '<p>No gaps detected.</p>'}
+    ` : '<p>Context learning disabled.</p>'}
   </div>
 
   <div class="card">

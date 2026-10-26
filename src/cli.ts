@@ -15,6 +15,9 @@ program
   .option('--base <branch>', 'Base branch', 'main')
   .option('--head <commit>', 'Head commit', 'HEAD')
   .option('--root <dir>', 'Root dir', process.cwd())
+  .option('--pr <number>', 'PR number (reads diff + linked GitHub Issues for context). Auto-detected from GITHUB_REF if not set')
+  .option('--repo <slug>', 'GitHub repo slug owner/repo (for --pr / --issue). Auto-detected from git remote origin or GITHUB_REPOSITORY')
+  .option('--issue <refs>', 'GitHub Issue refs: "123", "#123", "owner/repo#123", or GitHub URL; comma-separated. Merged with --workItem for context/gaps')
   .option('--ai', 'Enable AI impact', false)
   .option('--dry', 'Dry run - dont execute tests', false)
   .option('--verbose', 'Verbose logs', false)
@@ -26,6 +29,8 @@ program
   .option('--autoRun', 'Auto-run test profiles against live API', false)
   .option('--report', 'Generate HTML report page', false)
   .option('--reportPath <path>', 'Report output path', '')
+  .option('--workItem <refs>', 'Work item refs: ADO id (123), Jira key (PROJ-456), or text; comma-separated (also use --issue for GitHub Issues)')
+  .option('--no-learn', 'Disable context learning (learns by default)')
   .action(async (opts) => {
     try {
       const rootDir = path.resolve(opts.root);
@@ -47,7 +52,17 @@ program
         autoRun: opts.autoRun,
         report: opts.report,
         reportPath,
+        workItem: opts.workItem,
+        learn: opts.learn,
+        pr: opts.pr,
+        repo: opts.repo,
+        issue: opts.issue,
       } as any);
+
+      console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
+      if (result.context) {
+        console.log(`🧠 Context: ${result.context.workItems.length} work item(s), ${result.context.gaps.length} gap(s), ${result.context.knowledgeAreas} learned area(s)`);
+      }
 
       console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
       if ((result as any).reportPath) {
