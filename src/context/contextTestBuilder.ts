@@ -1,6 +1,6 @@
 import { ClassifiedChange } from '../analyzer/changeClassifier';
 import { TestProfile } from '../profile/testProfileBuilder';
-import { ContextAwareTestCase, ContextGap, EnrichedContext, ProductFact } from './types';
+import { ContextAwareTestCase, ContextGap, EnrichedContext } from './types';
 
 function methodFor(route: string, change: ClassifiedChange): string {
   const hit = change.endpoints.find(e => e.endsWith(route));
@@ -27,16 +27,12 @@ function tagFor(route: string, area: string): string {
 export function buildContextAwareProfiles(
   classified: ClassifiedChange[],
   enriched: EnrichedContext,
-  learned: ProductFact[],
 ): { profiles: TestProfile[]; contextCases: ContextAwareTestCase[] } {
   const profiles: TestProfile[] = [];
   const contextCases: ContextAwareTestCase[] = [];
 
-  const learnedEndpoints = new Set(learned.flatMap(f => f.endpoints));
-  const learnedKeywords = new Set(learned.flatMap(f => f.keywords).map(k => k.toLowerCase()));
-
   for (const change of classified) {
-    const area = enriched.areas[0] || learned[0]?.area || 'general';
+    const area = enriched.areas[0] || 'general';
     const eps = change.impactedEndpoints.length ? change.impactedEndpoints : change.endpoints;
     const testCases: TestProfile['testCases'] = [];
     const testData: Record<string, any> = {};
@@ -45,7 +41,6 @@ export function buildContextAwareProfiles(
       const parts = epStr.split(' ');
       const route = parts[1] || parts[0] || '/api/health';
       const method = parts[0]?.match(/GET|POST|PUT|PATCH|DELETE/i) ? parts[0].toUpperCase() : methodFor(route, change);
-      const known = learnedEndpoints.has(`${method} ${route}`) || learnedEndpoints.has(route) || learnedKeywords.size === 0;
       const criteria = enriched.acceptanceCriteria.filter(c => {
         const words = c.toLowerCase().split(/\W+/).filter(w => w.length > 3);
         return words.some(w => route.toLowerCase().includes(w) || change.file.toLowerCase().includes(w));
@@ -72,7 +67,7 @@ export function buildContextAwareProfiles(
         expectedStatus: 200,
         linkedCriteria: criteria,
         workItemId: wi ? `${wi.source}:${wi.id}` : undefined,
-        confidence: known ? 0.85 : 0.55,
+        confidence: 0.85,
       });
     }
 

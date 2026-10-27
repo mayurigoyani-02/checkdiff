@@ -66,7 +66,7 @@ program
 
       console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
       if (result.context) {
-        console.log(`🧠 Context: ${result.context.workItems.length} work item(s), ${result.context.gaps.length} gap(s), ${result.context.knowledgeAreas} learned area(s)`);
+        console.log(`🧠 Context: ${result.context.workItems.length} work item(s), ${result.context.gaps.length} gap(s)`);
       }
 
       console.log(`\nTest Profile: ${result.profiles.length} changes classified`);

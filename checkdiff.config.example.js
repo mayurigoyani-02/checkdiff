@@ -5,8 +5,7 @@ export default {
   // auto-detected if not set: nextjs, react, vue, express, django, fastapi, wordpress, shopify, static
   projectType: 'auto',
 
-  // Context learning: work items -> test profiles -> gap detection.
-  // Knowledge accumulates in .checkdiff/product-knowledge.json across runs.
+  // Context: PR diff + work-item link -> test profiles -> gap detection (stateless — no cross-run memory).
   // Minimal CLI: --pr <PR-URL-or-number> + --workItem <work-item-URL-or-key> — CI enforces the link.
   //   GitHub Issue: https://github.com/owner/repo/issues/123 or "#123" or "owner/repo#123"
   //   ADO: https://dev.azure.com/org/project/_workitems/edit/123 or "123"
@@ -16,7 +15,7 @@ export default {
   // Additional flags: --requireWorkItem (gate, exit 2 if unlinked), --publishToWorkItem (attach report to work item).
   // Auth: GitHub needs GITHUB_TOKEN (auto in Actions) for private repos; ADO needs ADO_ORG+ADO_PAT; Jira needs JIRA_BASE_URL+JIRA_API_TOKEN.
   context: {
-    learn: true,
+    // No persistence — every run derives profiles purely from current PR diff + work-item.
   },
 
   // White-box mode: map code changes to test tags

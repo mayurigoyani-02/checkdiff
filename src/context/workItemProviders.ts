@@ -331,6 +331,5 @@ export async function fetchEnrichedContext(req: WorkItemRequest, branchName = ''
     keywords,
     areas: [...new Set(workItems.map(w => w.area || inferArea(`${w.title} ${w.description}`)))],
     acceptanceCriteria: [...new Set(workItems.flatMap(w => w.acceptanceCriteria))],
-    learnedFacts: [],
   };
 }

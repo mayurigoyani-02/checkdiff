@@ -85,9 +85,9 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
   </div>
 
   <div class="card">
-    <h3>🧠 Work-Item Context & Learned Knowledge</h3>
+    <h3>🧠 Work-Item Context</h3>
     ${ctx ? `
-      <p>Work items: ${ctx.workItems.length} | Learned areas: ${ctx.knowledgeAreas} | Runs: ${ctx.totalRuns} | Gaps: ${ctx.gaps.length}</p>
+      <p>Work items: ${ctx.workItems.length} | Gaps: ${ctx.gaps.length}</p>
       ${(ctx.workItems || []).map((w: any) => `
         <div style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
           <strong>${w.source}:${w.id}</strong> — ${w.title || ''}

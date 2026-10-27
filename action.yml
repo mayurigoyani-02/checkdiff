@@ -105,5 +105,4 @@ runs:
         name: checkdiff-report
         path: |
           ${{ inputs.report-path }}
-          .checkdiff/product-knowledge.json
         if-no-files-found: warn

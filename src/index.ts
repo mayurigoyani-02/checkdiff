@@ -52,8 +52,6 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
   const profiles = buildTestProfiles(classified, opts.rootDir);
 
   let context: CheckDiffResult['context'];
-  // Expose for requireWorkItem check even when learn is disabled
-  let enrichedForGate: any = undefined;
   if (opts.learn !== false) {
     try {
       const { learnContextAndBuildProfiles } = await import('./context/index');
@@ -66,7 +64,6 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
         prLinkedIssueNumbers: pr?.linkedIssueNumbers,
         prContext: pr ? { title: pr.title, body: pr.body, url: pr.url } : undefined,
       });
-      enrichedForGate = ctx.enriched;
       for (const cp of ctx.contextProfiles) {
         const existing = profiles.find(p => p.change.file === cp.change.file);
         if (existing) {
@@ -81,11 +78,11 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
       context = {
         workItems: ctx.enriched.workItems,
         gaps: ctx.gaps,
-        knowledgeAreas: ctx.knowledge.facts.length,
-        totalRuns: ctx.knowledge.totalRuns,
+        knowledgeAreas: 0,
+        totalRuns: 0,
       };
     } catch (e: any) {
-      console.log(`  ⚠ Context learning skipped: ${e.message}`);
+      console.log(`  ⚠ Context skipped: ${e.message}`);
     }
   }
 

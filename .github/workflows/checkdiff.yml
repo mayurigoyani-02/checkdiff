@@ -121,7 +121,6 @@ jobs:
           name: checkdiff-report
           path: |
             checkdiff-report.html
-            .checkdiff/product-knowledge.json
             checkdiff.log
           if-no-files-found: warn
 

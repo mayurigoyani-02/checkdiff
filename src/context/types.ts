@@ -12,30 +12,11 @@ export interface WorkItemContext {
   url?: string;
 }
 
-export interface ProductFact {
-  area: string;
-  keywords: string[];
-  endpoints: string[];
-  testTags: string[];
-  acceptancePatterns: string[];
-  seenCount: number;
-  lastSeen: string;
-}
-
-export interface ProductKnowledge {
-  version: 1;
-  updatedAt: string;
-  facts: ProductFact[];
-  workItemsSeen: string[];
-  totalRuns: number;
-}
-
 export interface EnrichedContext {
   workItems: WorkItemContext[];
   keywords: string[];
   areas: string[];
   acceptanceCriteria: string[];
-  learnedFacts: ProductFact[];
 }
 
 export interface ContextGap {
