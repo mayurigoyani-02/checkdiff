@@ -100,9 +100,14 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
     }
   }
   
+  const graph = await findAffectedTests(diff.files, opts.rootDir);
+  const tags = [...new Set(graph.affected.flatMap((t: any) => t.tags as string[]))].filter(t => t !== '@all');
+  const command = tags.length === 0 ? 'npx playwright test' : `npx playwright test --grep "${tags.join('|')}"`;
+
   for (const p of profiles) {
     console.log(`\n--- ${p.change.file} [${p.change.type}/${p.change.subType}] ---`);
     const links = generateBrowserLinks(p, opts.rootDir, apiUrl);
+    console.log(`  Test profile: ${p.testCases.length} case(s) ${p.testCases.slice(0,3).map(tc=>`${tc.method} ${tc.endpoint} ${tc.tag}`).join(', ')}`);
     console.log(`  Swagger: ${links.swagger}`);
     if (opts.verbose) console.log(`  Curl:\n${generateSwaggerCurl(p, opts.rootDir, apiUrl)}`);
     if (opts.generateProfiles) {
@@ -110,10 +115,10 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
       console.log(`  Generated: ${out}`);
     }
   }
-
-  const graph = await findAffectedTests(diff.files, opts.rootDir);
-  const tags = [...new Set(graph.affected.flatMap((t: any) => t.tags as string[]))].filter(t => t !== '@all');
-  const command = tags.length === 0 ? 'npx playwright test' : `npx playwright test --grep "${tags.join('|')}"`;
+  if (tags.length) {
+    console.log(`\n▶ Test profile filter: ${command}`);
+    console.log(`  Playwright UI: ${command} --ui`);
+  }
 
   // === AUTO-RUN AND REPORT BEFORE TEST RUNNER ===
   let executionResults: any[] = [];

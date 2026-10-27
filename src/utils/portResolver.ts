@@ -21,12 +21,29 @@ export function loadServiceConfig(rootDir: string): ServiceConfig {
 
   for (const configPath of configPaths) {
     if (fs.existsSync(configPath)) {
+      // Handle ESM project where checkdiff.config.js is .js under "type": "module" (e.g. complex-service).
+      // Try CJS require; if that fails because it's an ESM, try .cjs fallback, then silent return {}.
       try {
         delete require.cache[require.resolve(configPath)];
         const config = require(configPath);
         console.log(`  ✔ Loaded service config from ${configPath}`);
         return config;
       } catch (e: any) {
+        const msg: string = e.message || '';
+        const isEsmError = msg.includes('require() of ES Module') || msg.includes('is treated as an ES module');
+        if (isEsmError) {
+          const cjsPath = configPath.replace(/\.js$/, '.cjs');
+          if (fs.existsSync(cjsPath) && cjsPath !== configPath) {
+            try {
+              delete require.cache[require.resolve(cjsPath)];
+              const config = require(cjsPath);
+              console.log(`  ✔ Loaded service config from ${cjsPath} (ESM fallback)`);
+              return config;
+            } catch {}
+          }
+          // No CJS fallback — do not warn (normal for ESM service with unneeded config).
+          return {};
+        }
         console.log(`  ⚠ Failed to load ${configPath}: ${e.message}`);
       }
     }

@@ -116,8 +116,8 @@ export function findContextGaps(
     gaps.push({
       severity: 'medium',
       category: 'no-workitem-link',
-      message: 'No work item / GitHub Issue linked -- profiles built from diff + learned product knowledge only.',
-      suggestion: 'Link an Issue: --workItem "#123" or "123" (GitHub Issue, needs --repo or GITHUB_REPOSITORY), "PROJ-456" (Jira), or use --pr <number> --repo owner/repo (reads PR + linked Issues). Set GITHUB_TOKEN for private repos.',
+      message: 'No work item linked — add --workItem "https://github.com/owner/repo/issues/123" (or "#123", ADO URL, or Jira PROJ-123) or link via PR body "Fixes #123".',
+      suggestion: 'Pass one work-item link; for private repos set GITHUB_TOKEN. CI gate (--requireWorkItem) fails if still unlinked.',
     });
   }
 

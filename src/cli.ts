@@ -64,15 +64,35 @@ program
         publishToWorkItem: opts.publishToWorkItem,
       } as any);
 
-      console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
+      if (result.diff) {
+        const d: any = result.diff;
+        console.log(`\nDiff Report: source=${d.source} base=${d.base} head=${String(d.head).slice(0,12)} files=${d.files.length}${d.pr ? ` PR #${d.pr.number} ${d.pr.url}` : ''}`);
+        if (d.files.length) console.log(`  Files: ${d.files.join(', ')}`);
+      }
       if (result.context) {
         console.log(`🧠 Context: ${result.context.workItems.length} work item(s), ${result.context.gaps.length} gap(s)`);
+        if (result.context.workItems.length) console.log(`  Work items: ${result.context.workItems.map((w:any) => `${w.source}:${w.id} ${w.title?.slice(0,60)} ${w.url||''}`).join('\n  ')}`);
       }
-
-      console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
-      if ((result as any).reportPath) {
-        console.log(`📄 Report: ${(result as any).reportPath}`);
-        console.log(`Exists: ${require('fs').existsSync((result as any).reportPath)}`);
+      console.log(`\nTest Profiles: ${result.profiles.length} file(s) • Gaps: ${result.context?.gaps?.length ?? 0}`);
+      for (const p of result.profiles) {
+        const grep = [...new Set(p.testCases.map(tc => tc.tag))].join('|');
+        const cmd = grep ? `npx playwright test --grep "${grep}"` : result.command;
+        console.log(`  • ${p.change.file} [${p.change.type}/${p.change.subType}] — ${p.testCases.length} case(s): ${p.testCases.slice(0,4).map(tc=>`${tc.method} ${tc.endpoint} ${tc.tag}`).join(', ')}${p.testCases.length>4?' …':''}`);
+        console.log(`    Test profile link: ${cmd}`);
+        console.log(`    Playwright link: ${cmd} --ui`);
+      }
+      if (result.context?.gaps?.length) {
+        console.log(`\nGaps:`);
+        for (const g of result.context.gaps.slice(0,10)) console.log(`  [${g.severity}] ${g.category}: ${g.message}`);
+      }
+      if (result.reportPath) {
+        console.log(`\n📄 Reports:`);
+        console.log(`  Diff/Report: ${result.reportPath}`);
+        console.log(`  Browser: file:///${result.reportPath.replace(/\\/g,'/')}`);
+      }
+      if (result.command) {
+        console.log(`\n▶ Playwright (filtered): ${result.command}`);
+        console.log(`  Run: ${result.command} --ui`);
       }
     } catch (e: any) {
       const exitCode = (e as any).exitCode || (e as any).code === 'REQUIRE_WORKITEM' ? 2 : 1;

@@ -51,6 +51,12 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
     <p>Command: <code>${result.command}</code></p>
     ${diff ? `<p>Diff: <code>${diff.source || 'git'}</code> — base <code>${diff.base}</code> ... head <code>${String(diff.head).slice(0, 12)}</code> — ${diff.files.length} file(s)${diff.pr ? ` — <a style="color:#fff;text-decoration:underline" href="${diff.pr.url}" target="_blank">PR #${diff.pr.number}: ${diff.pr.title}</a> ${diff.repo ? `(${diff.repo})` : ''}` : ''}${diff.repo && !diff.pr ? ` — ${diff.repo}` : ''}</p>` : ''}
     ${diff?.pr?.linkedIssueNumbers?.length ? `<p>Linked Issues: ${diff.pr.linkedIssueNumbers.map((n: number) => `<a style="color:#fff;text-decoration:underline" href="https://github.com/${diff.repo}/issues/${n}" target="_blank">#${n}</a>`).join(', ')}</p>` : ''}
+    <p style="margin-top:10px">
+      <a class="btn" href="#diff">Diff</a>
+      <a class="btn" href="#profiles">Test Profiles</a>
+      <a class="btn" href="#playwright">Playwright</a>
+      <a class="btn" href="#report">Test Report</a>
+    </p>
   </div>
 
   <div class="stats">
@@ -60,7 +66,17 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
     <div class="stat port"><h2>${result.port}</h2><p>Port: ${result.apiUrl}</p></div>
   </div>
 
-  <div class="grid">
+  <div id="diff" class="card">
+    <h3>Diff Report</h3>
+    ${diff ? `
+      <p>Source: <code>${diff.source || 'git'}</code> — <code>${diff.base}</code> ... <code>${String(diff.head).slice(0, 12)}</code> — ${diff.files.length} file(s)</p>
+      <p>Files: ${diff.files.map((f:string) => `<code>${f}</code>`).join(', ') || '<em>none</em>'}</p>
+      ${diff.pr ? `<p>PR: <a class="btn" href="${diff.pr.url}" target="_blank">PR #${diff.pr.number}: ${diff.pr.title}</a> ${diff.repo ? `<code>${diff.repo}</code>` : ''}</p>` : ''}
+    ` : '<p><em>No diff context</em></p>'}
+    <p>Diff content: <code>${(result as any).diffContent ? `${(result as any).diffContent.length} chars` : 'n/a'}</code> (log in CI)</p>
+  </div>
+
+  <div id="profiles" class="grid">
     <div class="card">
       <h3>📁 Changed Files Classification</h3>
       ${result.classified.map(c => `
@@ -74,13 +90,20 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
 
     <div class="card">
       <h3>🧪 Test Profiles Generated</h3>
-      ${result.profiles.map(p => `
-        <div style="margin:10px 0;">
-          <strong>${p.change.file}</strong> (${p.testCases.length} cases)<br>
-          ${p.testCases.map(tc => `<span class="badge">${tc.method} ${tc.endpoint}</span>`).join('')}
+      ${result.profiles.map(p => {
+        const grep = [...new Set(p.testCases.map(tc => tc.tag))].join('|');
+        const playwrightCmd = grep ? `npx playwright test --grep "${grep}"` : `npx playwright test ${p.change.file}`;
+        const playwrightUi = `${playwrightCmd} --ui`;
+        return `
+        <div style="margin:10px 0; padding:10px; background:#2a2a2a; border-radius:6px;">
+          <strong>${p.change.file}</strong> (${p.testCases.length} cases)
+          <a class="btn" href="#playwright" onclick="document.getElementById('playwright').scrollIntoView()">Run via Profile</a><br>
+          ${p.testCases.map(tc => `<span class="badge">${tc.method} ${tc.endpoint} ${tc.tag}</span>`).join('')}
+          <pre>Playwright: ${playwrightCmd}\nUI: ${playwrightUi}</pre>
+          <a class="btn" href="${result.apiUrl}/api-docs" target="_blank">Swagger: ${result.apiUrl}/api-docs</a>
           <pre>${JSON.stringify(p.testData, null, 2)}</pre>
         </div>
-      `).join('')}
+      `}).join('')}
     </div>
   </div>
 
@@ -104,8 +127,25 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
     ` : '<p>Context learning disabled.</p>'}
   </div>
 
-  <div class="card">
-    <h3>🚀 Endpoint Execution Results (Auto-Run)</h3>
+  <div id="playwright" class="card">
+    <h3>▶️ Playwright — Run Test Profiles</h3>
+    <p>Filtered command for changed files: <code>${result.command}</code></p>
+    <p><a class="btn" href="#" onclick="navigator.clipboard.writeText('${result.command.replace(/'/g, "\\'")}'); return false;">Copy: ${result.command}</a> <a class="btn" href="#" onclick="navigator.clipboard.writeText('${(result.command + ' --ui').replace(/'/g, "\\'")}'); return false;">Copy with --ui</a></p>
+    <pre>Run: ${result.command}
+UI: ${result.command} --ui
+All auto profiles: npx playwright test e2e/auto --ui</pre>
+    <p>Test profile links (per changed file):</p>
+    <ul>
+      ${result.profiles.map(p => {
+        const grep = [...new Set(p.testCases.map(tc => tc.tag))].join('|');
+        const cmd = grep ? `npx playwright test --grep "${grep}"` : `npx playwright test`;
+        return `<li><code>${p.change.file}</code> — <code>${cmd}</code> — Swagger: <a href="${result.apiUrl}/api-docs" target="_blank">${result.apiUrl}/api-docs</a></li>`;
+      }).join('')}
+    </ul>
+  </div>
+
+  <div id="report" class="card">
+    <h3>🚀 Test Report — Execution</h3>
     ${executionResults.map(r => `
       <div class="endpoint ${r.success ? 'success' : 'fail'}">
         <div>
@@ -133,6 +173,7 @@ export function generateHtmlReport(result: CheckDiffResult, executionResults: Te
     <h4>Playwright:</h4>
     <pre>${result.command} --ui</pre>
     <pre>npx playwright test e2e/auto --ui</pre>
+    <p><a class="btn" href="#profiles">Back to Test Profiles</a></p>
   </div>
 
   <script>
