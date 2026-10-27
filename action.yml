@@ -1,15 +1,109 @@
 name: 'CheckDiff E2E'
-description: 'Universal check-in aware E2E testing for any website/service'
+description: 'Check diff for PR + linked work item (GitHub Issue / ADO / Jira), generate test profiles, flag gaps, and publish report to work item'
 branding:
   icon: 'check-square'
   color: 'blue'
 inputs:
-  base-branch:
-    description: 'Base branch to diff against'
-    default: 'main'
-  url:
-    description: 'Live URL for black-box mode'
+  pr:
+    description: 'PR link: GitHub PR URL (https://github.com/owner/repo/pull/123) or number. Auto-detected from GITHUB_REF in PR events'
     required: false
+  workItem:
+    description: 'Work-item link: GitHub Issue URL or "#123"/"123", ADO URL or id, or Jira key PROJ-123 (comma-separated). Required when requireWorkItem is true; auto-extracted from PR body (Fixes #123) if not set'
+    required: false
+  requireWorkItem:
+    description: 'Fail if no work item is linked (CI gate)'
+    required: false
+    default: 'true'
+  publishToWorkItem:
+    description: 'Upload HTML report to the linked work item (GitHub Issue comment, ADO attachment, Jira attachment)'
+    required: false
+    default: 'true'
+  base-branch:
+    description: 'Base branch when not using --pr (fallback)'
+    default: 'main'
+  report-path:
+    description: 'Path for HTML report'
+    default: 'checkdiff-report.html'
 runs:
-  using: 'docker'
-  image: 'Dockerfile'
+  using: 'composite'
+  steps:
+    - name: Setup Node
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+    - name: Install and build CheckDiff
+      shell: bash
+      run: |
+        if [ -f package.json ] && grep -q '"name": "checkdiff"' package.json; then
+          npm ci || npm install
+          npm run build
+        else
+          npm install -g checkdiff || npm install github:mayurigoyani-02/checkdiff
+        fi
+    - name: Resolve PR and work-item links
+      id: resolve
+      shell: bash
+      env:
+        INPUT_PR: ${{ inputs.pr }}
+        INPUT_WORKITEM: ${{ inputs.workItem }}
+        GITHUB_EVENT_PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        GITHUB_EVENT_PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+        GITHUB_EVENT_PULL_REQUEST_BODY: ${{ github.event.pull_request.body }}
+      run: |
+        node -e '
+        const prInput = (process.env.INPUT_PR || "").trim();
+        const wiInput = (process.env.INPUT_WORKITEM || "").trim();
+        const prNumber = process.env.GITHUB_EVENT_PULL_REQUEST_NUMBER || "";
+        let pr = prInput;
+        if (!pr && prNumber) pr = `https://github.com/${process.env.GITHUB_REPOSITORY}/pull/${prNumber}`;
+        if (!pr && process.env.GITHUB_REF) {
+          const m = process.env.GITHUB_REF.match(/refs\/pull\/(\d+)\/merge/);
+          if (m) pr = `https://github.com/${process.env.GITHUB_REPOSITORY}/pull/${m[1]}`;
+        }
+        let workItem = wiInput;
+        if (!workItem && process.env.GITHUB_EVENT_PULL_REQUEST_BODY) {
+          const text = `${process.env.GITHUB_EVENT_PULL_REQUEST_TITLE || ""}\n${process.env.GITHUB_EVENT_PULL_REQUEST_BODY}`;
+          const gh = [...text.matchAll(/github\.com\/[^/]+\/[^/]+\/(?:issues|pull)\/(\d+)/gi)].map(m => m[0]);
+          const fixes = [...text.matchAll(/(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)/gi)].map(m => m[0].replace(/.*?(#\d+).*/, "$1"));
+          const jira = [...text.matchAll(/\b([A-Z][A-Z0-9]+-\d+)\b/g)].map(m => m[1]);
+          const ado = [...text.matchAll(/dev\.azure\.com\/[^/]+\/[^/]+\/_workitems\/edit\/(\d+)/gi)].map(m => m[0]);
+          const parts = [...new Set([...gh, ...fixes, ...jira, ...ado])];
+          workItem = parts.join(",");
+        }
+        const out = process.env.GITHUB_OUTPUT;
+        const fs = require("fs");
+        function set(k,v){ fs.appendFileSync(out, `${k}=${String(v).replace(/\n/g, "%0A")}\n`); }
+        set("pr", pr);
+        set("workItem", workItem);
+        console.log(`Resolved pr=${pr}`);
+        console.log(`Resolved workItem=${workItem}`);
+        '
+    - name: Run CheckDiff
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
+        ADO_PAT: ${{ secrets.ADO_PAT }}
+        ADO_ORG: ${{ secrets.ADO_ORG }}
+        ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
+        JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+        JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+        JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+      run: |
+        PR="${{ steps.resolve.outputs.pr }}"
+        WI="${{ steps.resolve.outputs.workItem }}"
+        ARGS=""
+        [ -n "$PR" ] && ARGS="$ARGS --pr $PR"
+        [ -n "$WI" ] && ARGS="$ARGS --workItem $WI"
+        [ "${{ inputs.requireWorkItem }}" = "true" ] && ARGS="$ARGS --requireWorkItem"
+        ARGS="$ARGS --report --reportPath ${{ inputs.report-path }} --verbose"
+        [ "${{ inputs.publishToWorkItem }}" = "true" ] && [ -n "$WI" ] && ARGS="$ARGS --publishToWorkItem"
+        if [ -f dist/cli.js ]; then node dist/cli.js run $ARGS; else npx checkdiff run $ARGS; fi
+    - name: Upload report artifact
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: checkdiff-report
+        path: |
+          ${{ inputs.report-path }}
+          .checkdiff/product-knowledge.json
+        if-no-files-found: warn

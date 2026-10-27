@@ -7,12 +7,14 @@ export default {
 
   // Context learning: work items -> test profiles -> gap detection.
   // Knowledge accumulates in .checkdiff/product-knowledge.json across runs.
-  // Diff: reads PR diff when --pr <number> (or GITHUB_REF), otherwise git base...head or working dir.
-  // Issues: GitHub Issues for context (linked via PR "Fixes #123" or explicit --issue "#123,owner/repo#456").
-  // Link a work item: --workItem "123" (ADO/Jira/GitHub), --issue "#123" (GitHub), --pr 42 --repo owner/repo.
-  // GitHub: needs GITHUB_TOKEN (or GITHUB_PAT/GH_TOKEN) for private repos; public works without token (rate-limited).
-  // ADO: needs ADO_ORG (+ADO_PROJECT) + ADO_PAT. Jira: needs JIRA_BASE_URL + JIRA_EMAIL + JIRA_API_TOKEN.
-  // Auto-linked: branch names with AB#123 / PROJ-456 / #123 or issue numbers. Use --no-learn to disable.
+  // Minimal CLI: --pr <PR-URL-or-number> + --workItem <work-item-URL-or-key> — CI enforces the link.
+  //   GitHub Issue: https://github.com/owner/repo/issues/123 or "#123" or "owner/repo#123"
+  //   ADO: https://dev.azure.com/org/project/_workitems/edit/123 or "123"
+  //   Jira: "PROJ-123"
+  // PR diff: from --pr URL/number (or GITHUB_REF in CI), else base...head / working dir.
+  // CI: .github/workflows/checkdiff.yml checks every PR has a work item, runs report, and uploads it to the work item.
+  // Additional flags: --requireWorkItem (gate, exit 2 if unlinked), --publishToWorkItem (attach report to work item).
+  // Auth: GitHub needs GITHUB_TOKEN (auto in Actions) for private repos; ADO needs ADO_ORG+ADO_PAT; Jira needs JIRA_BASE_URL+JIRA_API_TOKEN.
   context: {
     learn: true,
   },

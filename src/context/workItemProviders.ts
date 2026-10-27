@@ -1,4 +1,5 @@
 import { EnrichedContext, WorkItemContext } from './types';
+import { parseWorkItemLinks, workItemRefsToLegacyRequest } from '../utils/links';
 
 function env(name: string): string | undefined {
   const v = process.env[name];
@@ -211,27 +212,9 @@ export interface WorkItemRequest {
   repoHint?: string;
 }
 
+// Back-compat wrapper: delegates to utils/links so PR + workitem parsing is unified
 export function parseWorkItemRefs(raw?: string): WorkItemRequest {
-  const req: WorkItemRequest = { adoIds: [], jiraKeys: [], githubIssueNumbers: [], manualText: [] };
-  if (!raw) return req;
-  for (const part of raw.split(',').map(s => s.trim()).filter(Boolean)) {
-    // github.com URL -> issue number
-    const urlMatch = part.match(/github\.com\/([^/]+\/[^/]+)\/(?:issues|pull)\/(\d+)/i);
-    if (urlMatch) {
-      req.githubIssueNumbers.push(parseInt(urlMatch[2], 10));
-      if (!req.repoHint) req.repoHint = urlMatch[1];
-      continue;
-    }
-    if (/^[A-Z][A-Z0-9]+-\d+$/i.test(part)) { req.jiraKeys.push(part.toUpperCase()); continue; }
-    // Defer numeric: may be ADO id or GitHub issue — resolved in fetchEnrichedContext
-    if (/^\d+$/.test(part)) {
-      // Keep as adoIds for backward compat; GitHub fallback will also try it
-      req.adoIds.push(part);
-      continue;
-    }
-    req.manualText.push(part);
-  }
-  return req;
+  return workItemRefsToLegacyRequest(parseWorkItemLinks(raw));
 }
 
 function inferArea(text: string): string {

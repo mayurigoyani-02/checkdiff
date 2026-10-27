@@ -2,6 +2,7 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { parsePrLink } from '../utils/links';
 
 export interface PRMeta {
   number: number;
@@ -68,6 +69,8 @@ function resolveRepo(optsRepo?: string, rootDir?: string): string | undefined {
 }
 
 function resolvePRNumber(optsPr?: string | number): number | undefined {
+  const parsed = parsePrLink(optsPr !== undefined && optsPr !== null ? String(optsPr).trim() : '');
+  if (parsed?.number) return parsed.number;
   if (optsPr !== undefined && optsPr !== null && String(optsPr).trim() !== '') {
     const n = parseInt(String(optsPr).trim(), 10);
     if (!isNaN(n)) return n;
@@ -78,6 +81,11 @@ function resolvePRNumber(optsPr?: string | number): number | undefined {
   const envPr = env('PR_NUMBER') || env('GITHUB_PR_NUMBER') || env('CI_MERGE_REQUEST_IID');
   if (envPr && /^\d+$/.test(envPr.trim())) return parseInt(envPr.trim(), 10);
   return undefined;
+}
+
+function resolvePrRepoOverride(optsPr?: string | number): string | undefined {
+  const parsed = parsePrLink(optsPr !== undefined && optsPr !== null ? String(optsPr).trim() : '');
+  return parsed?.repo;
 }
 
 function githubToken(): string | undefined {
@@ -154,7 +162,9 @@ export async function collectDiff(opts: { base: string; head?: string; rootDir?:
   const cwd = opts.rootDir || process.cwd();
   const verbose = opts.verbose;
   const prNumber = resolvePRNumber(opts.pr);
-  const repo = resolveRepo(opts.repo, cwd);
+  // PR URL may already carry repo (e.g. https://github.com/owner/repo/pull/42)
+  const prRepoOverride = resolvePrRepoOverride(opts.pr);
+  const repo = resolveRepo(opts.repo || prRepoOverride, cwd);
   let prMeta: PRMeta | undefined;
   let files: string[] = [];
   let diffContent = '';

@@ -12,12 +12,15 @@ program
 
 program
   .command('run')
-  .option('--base <branch>', 'Base branch', 'main')
-  .option('--head <commit>', 'Head commit', 'HEAD')
+  .option('--pr <link>', 'PR link: GitHub PR URL (https://github.com/owner/repo/pull/123) or number. Auto-detected from GITHUB_REF in CI. Required in CI when --requireWorkItem is set')
+  .option('--workItem <link>', 'Work-item link: GitHub Issue URL or "#123"/"123", ADO URL or id "123", or Jira key "PROJ-123" (comma-separated for multiple). Required when CI enforces the check')
+  .option('--requireWorkItem', 'Fail the run if no work item is linked (CI gate: PR must have a work item). Exit 2 when unlinked', false)
+  .option('--base <branch>', 'Base branch (fallback when --pr not used)', 'main')
+  .option('--head <commit>', 'Head commit (fallback when --pr not used)', 'HEAD')
   .option('--root <dir>', 'Root dir', process.cwd())
-  .option('--pr <number>', 'PR number (reads diff + linked GitHub Issues for context). Auto-detected from GITHUB_REF if not set')
-  .option('--repo <slug>', 'GitHub repo slug owner/repo (for --pr / --issue). Auto-detected from git remote origin or GITHUB_REPOSITORY')
-  .option('--issue <refs>', 'GitHub Issue refs: "123", "#123", "owner/repo#123", or GitHub URL; comma-separated. Merged with --workItem for context/gaps')
+  // Deprecated aliases (still work, hidden from primary docs)
+  .option('--repo <slug>', '[deprecated] Use URL form in --pr/--workItem. Override GitHub repo slug owner/repo', '')
+  .option('--issue <refs>', '[deprecated] Use --workItem for GitHub Issues')
   .option('--ai', 'Enable AI impact', false)
   .option('--dry', 'Dry run - dont execute tests', false)
   .option('--verbose', 'Verbose logs', false)
@@ -29,7 +32,7 @@ program
   .option('--autoRun', 'Auto-run test profiles against live API', false)
   .option('--report', 'Generate HTML report page', false)
   .option('--reportPath <path>', 'Report output path', '')
-  .option('--workItem <refs>', 'Work item refs: ADO id (123), Jira key (PROJ-456), or text; comma-separated (also use --issue for GitHub Issues)')
+  .option('--publishToWorkItem', 'Upload the generated HTML report to the linked work item (GitHub Issue, ADO, Jira). Requires --report', false)
   .option('--no-learn', 'Disable context learning (learns by default)')
   .action(async (opts) => {
     try {
@@ -57,6 +60,8 @@ program
         pr: opts.pr,
         repo: opts.repo,
         issue: opts.issue,
+        requireWorkItem: opts.requireWorkItem,
+        publishToWorkItem: opts.publishToWorkItem,
       } as any);
 
       console.log(`\nTest Profile: ${result.profiles.length} changes classified`);
@@ -70,9 +75,10 @@ program
         console.log(`Exists: ${require('fs').existsSync((result as any).reportPath)}`);
       }
     } catch (e: any) {
+      const exitCode = (e as any).exitCode || (e as any).code === 'REQUIRE_WORKITEM' ? 2 : 1;
       console.error('Error:', e.message);
-      console.error(e.stack);
-      process.exit(1);
+      if (!e.exitCode) console.error(e.stack);
+      process.exit(exitCode);
     }
   });
 

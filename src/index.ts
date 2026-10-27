@@ -15,6 +15,8 @@ export interface CheckDiffOpts {
   autoRun?: boolean; report?: boolean; reportPath?: string;
   workItem?: string; learn?: boolean;
   pr?: string | number; repo?: string; issue?: string;
+  requireWorkItem?: boolean;
+  publishToWorkItem?: boolean;
 }
 
 export interface CheckDiffResult {
@@ -50,6 +52,8 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
   const profiles = buildTestProfiles(classified, opts.rootDir);
 
   let context: CheckDiffResult['context'];
+  // Expose for requireWorkItem check even when learn is disabled
+  let enrichedForGate: any = undefined;
   if (opts.learn !== false) {
     try {
       const { learnContextAndBuildProfiles } = await import('./context/index');
@@ -62,6 +66,7 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
         prLinkedIssueNumbers: pr?.linkedIssueNumbers,
         prContext: pr ? { title: pr.title, body: pr.body, url: pr.url } : undefined,
       });
+      enrichedForGate = ctx.enriched;
       for (const cp of ctx.contextProfiles) {
         const existing = profiles.find(p => p.change.file === cp.change.file);
         if (existing) {
@@ -81,6 +86,20 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
       };
     } catch (e: any) {
       console.log(`  ⚠ Context learning skipped: ${e.message}`);
+    }
+  }
+
+  if (opts.requireWorkItem) {
+    const hasWorkItem = Boolean(context && context.workItems.length > 0);
+    // Also allow PR body linking to count (ctx may have synthesized pr:context workItem)
+    if (!hasWorkItem) {
+      const msg = 'CI check failed: PR must include a linked work item (GitHub Issue, ADO, or Jira). Pass --workItem "<url|id|key>" or link via PR body "Fixes #123".';
+      console.error(`\n❌ ${msg}`);
+      const gapHint = context?.gaps?.find((g: any) => g.category === 'no-workitem-link');
+      if (gapHint) console.error(`   ${gapHint.suggestion}`);
+      throw Object.assign(new Error(msg), { code: 'REQUIRE_WORKITEM', exitCode: 2 });
+    } else {
+      console.log(`✔ Work-item gate passed: ${context!.workItems.length} item(s) linked`);
     }
   }
   
@@ -117,6 +136,33 @@ export async function checkdiff(opts: CheckDiffOpts): Promise<CheckDiffResult> {
     } catch (e: any) {
       console.error(`❌ Report failed: ${e.message}`);
       console.error(e.stack);
+    }
+  }
+
+  if (opts.publishToWorkItem) {
+    if (!context || context.workItems.length === 0) {
+      console.log('  ⚠ --publishToWorkItem set but no work item linked — skipping upload');
+    } else if (!opts.report && !opts.autoRun) {
+      console.log('  ⚠ --publishToWorkItem needs --report (or --autoRun) to generate a report — skipping upload');
+    } else {
+      const rp = reportPath;
+      if (!fs.existsSync(rp)) {
+        console.log(`  ⚠ Report not found at ${rp} — skipping upload`);
+      } else {
+        try {
+          const { publishReportToWorkItems } = await import('./publish/publishReport');
+          const pub = await publishReportToWorkItems({
+            workItems: (context as any).workItems,
+            reportPath: rp,
+            pr,
+            repo,
+            rootDir: opts.rootDir,
+          });
+          for (const r of pub.results) console.log(`  ${r.ok ? '✔' : '⚠'} Publish ${r.workItemRef}: ${r.ok ? r.message : r.error}`);
+        } catch (e: any) {
+          console.log(`  ⚠ Publish failed: ${e.message}`);
+        }
+      }
     }
   }
 

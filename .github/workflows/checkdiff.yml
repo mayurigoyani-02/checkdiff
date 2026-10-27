@@ -1,0 +1,160 @@
+name: CheckDiff — PR gate + report
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR link or number (e.g. https://github.com/owner/repo/pull/42 or 42)'
+        required: false
+        type: string
+      workItem:
+        description: 'Work-item link: GitHub Issue URL/#123, ADO URL/id, or Jira key PROJ-123 (comma-separated)'
+        required: false
+        type: string
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  checkdiff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install CheckDiff
+        run: |
+          # From local checkout (this repo is CheckDiff) — otherwise use npm registry:
+          # npm install -g checkdiff
+          npm ci || npm install
+          npm run build
+
+      - name: Resolve PR and work-item links
+        id: resolve
+        env:
+          INPUT_PR: ${{ inputs.pr }}
+          INPUT_WORKITEM: ${{ inputs.workItem }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          node -e '
+          const prInput = (process.env.INPUT_PR || "").trim();
+          const wiInput = (process.env.INPUT_WORKITEM || "").trim();
+          const prTitle = process.env.PR_TITLE || "";
+          const prBody = process.env.PR_BODY || "";
+          const prNumber = process.env.PR_NUMBER || "";
+
+          // PR link: prefer explicit input, else event PR, else GITHUB_REF
+          let pr = prInput || (prNumber ? `https://github.com/${process.env.GITHUB_REPOSITORY}/pull/${prNumber}` : "");
+          if (!pr && process.env.GITHUB_REF) {
+            const m = process.env.GITHUB_REF.match(/refs\/pull\/(\d+)\/merge/);
+            if (m) pr = `https://github.com/${process.env.GITHUB_REPOSITORY}/pull/${m[1]}`;
+          }
+
+          // Work-item: explicit input wins; else extract from PR body "Fixes #123" / URLs / Jira keys / ADO links
+          let workItem = wiInput;
+          if (!workItem) {
+            const text = `${prTitle}\n${prBody}`;
+            const gh = [...text.matchAll(/github\.com\/[^/]+\/[^/]+\/(?:issues|pull)\/(\d+)/gi)].map(m => m[0]);
+            const fixes = [...text.matchAll(/(?:close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)\s+#(\d+)/gi)].map(m => m[0].replace(/.*?(#\d+).*/, "$1"));
+            const jira = [...text.matchAll(/\b([A-Z][A-Z0-9]+-\d+)\b/g)].map(m => m[1]);
+            const ado = [...text.matchAll(/dev\.azure\.com\/[^/]+\/[^/]+\/_workitems\/edit\/(\d+)/gi)].map(m => m[0]);
+            const parts = [...new Set([...gh, ...fixes, ...jira, ...ado])];
+            workItem = parts.join(",");
+          }
+
+          const out = process.env.GITHUB_OUTPUT;
+          const fs = require("fs");
+          function set(k,v){ fs.appendFileSync(out, `${k}=${String(v).replace(/\n/g, "%0A")}\n`); }
+          set("pr", pr);
+          set("workItem", workItem);
+          console.log(`Resolved pr=${pr}`);
+          console.log(`Resolved workItem=${workItem}`);
+          '
+
+      - name: Run CheckDiff (PR diff + work-item context, HTML report)
+        id: checkdiff
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ADO_PAT: ${{ secrets.ADO_PAT }}
+          ADO_ORG: ${{ secrets.ADO_ORG }}
+          ADO_PROJECT: ${{ secrets.ADO_PROJECT }}
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_EMAIL: ${{ secrets.JIRA_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+        run: |
+          set -e
+          PR="${{ steps.resolve.outputs.pr }}"
+          WI="${{ steps.resolve.outputs.workItem }}"
+          echo "PR=$PR"
+          echo "WorkItem=$WI"
+          # Gate + report; --publishToWorkItem posts comment/attachment to the linked work item
+          # Exit 2 = missing work item (CI fail); other non-zero = tool error
+          node dist/cli.js run \
+            ${PR:+--pr "$PR"} \
+            ${WI:+--workItem "$WI"} \
+            --requireWorkItem \
+            --report --verbose \
+            ${WI:+--publishToWorkItem} 2>&1 | tee checkdiff.log
+          EXIT=${PIPESTATUS[0]}
+          if [ $EXIT -eq 2 ]; then
+            echo "::error::PR must include a linked work item (GitHub Issue, ADO, or Jira). Add it to the PR body (Fixes #123) or pass workItem input."
+            exit 2
+          fi
+          exit $EXIT
+
+      - name: Upload HTML report artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: checkdiff-report
+          path: |
+            checkdiff-report.html
+            .checkdiff/product-knowledge.json
+            checkdiff.log
+          if-no-files-found: warn
+
+      - name: Comment PR with report link (fallback when publish failed)
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request?.number;
+            if (!pr) return;
+            const fs = require('fs');
+            let log = '';
+            try { log = fs.readFileSync('checkdiff.log', 'utf8').slice(-4000); } catch {}
+            const runUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const body = [
+              '<!-- checkdiff-ci -->',
+              '### 🔍 CheckDiff — CI run',
+              `Run: ${runUrl}`,
+              'Artifact: `checkdiff-report` (HTML report) on this workflow run.',
+              '',
+              '<details><summary>Log tail</summary>',
+              '',
+              '```',
+              log.slice(0, 3500),
+              '```',
+              '</details>'
+            ].join('\n');
+            // Upsert: delete previous bot comment with same marker
+            const { data: comments } = await github.rest.issues.listComments({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr, per_page: 100 });
+            for (const c of comments.reverse()) {
+              if (c.body && c.body.includes('<!-- checkdiff-ci -->') && c.user.type === 'Bot') {
+                try { await github.rest.issues.deleteComment({ owner: context.repo.owner, repo: context.repo.repo, comment_id: c.id }); } catch {}
+                break;
+              }
+            }
+            await github.rest.issues.createComment({ owner: context.repo.owner, repo: context.repo.repo, issue_number: pr, body });
