@@ -54,8 +54,12 @@ async function publishToGitHubIssue(wi: WorkItemContext, reportPath: string, fal
   const numeric = parseInt(issueNumber, 10);
   if (isNaN(numeric)) {
     if (pr?.number && repo) {
+      const workflowUrl2 = env('GITHUB_SERVER_URL') && env('GITHUB_REPOSITORY') && env('GITHUB_RUN_ID')
+        ? `${env('GITHUB_SERVER_URL')}/${env('GITHUB_REPOSITORY')}/actions/runs/${env('GITHUB_RUN_ID')}`
+        : '';
+      const hint2 = workflowUrl2 ? `Open the run → Artifacts → download \`checkdiff-report\`.\n${workflowUrl2}` : 'Actions tab → run → Artifacts → checkdiff-report.';
       const url = `https://api.github.com/repos/${repo}/issues/${pr.number}/comments`;
-      const body = `${MARKER}\n### CheckDiff — PR context (no linked Issue)\n${reportSummaryHtml(reportPath)}\n\nPR: ${pr.url || ''}\n\n> Full HTML report is attached as a workflow artifact. Use \`--workItem https://github.com/${repo}/issues/<id>\` to attach to a real work item.\n${MARKER_END}`;
+      const body = `${MARKER}\n### 🔍 CheckDiff — PR context (no linked Issue)\n${reportSummaryHtml(reportPath)}\n\nPR: ${pr.url || ''}\n\n> Full HTML report is a workflow artifact: ${hint2}\nUse \`--workItem https://github.com/${repo}/issues/<id>\` to attach to a real work item.\n${MARKER_END}`;
       try {
         const res = await fetch(url, { method: 'POST', headers: { ...githubAuthHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify({ body }) });
         if (!res.ok) throw new Error(`${res.status} ${await res.text().then(t => t.slice(0, 400)).catch(() => '')}`);
@@ -83,9 +87,12 @@ async function publishToGitHubIssue(wi: WorkItemContext, reportPath: string, fal
     const gapsNote = wi.acceptanceCriteria?.length ? `\nAcceptance: ${wi.acceptanceCriteria.slice(0, 3).join(' | ').slice(0, 300)}` : '';
     const prNote = pr ? `\nPR: ${pr.url || `#${pr.number}`}` : '';
     const workflowUrl = env('GITHUB_SERVER_URL') && env('GITHUB_REPOSITORY') && env('GITHUB_RUN_ID')
-      ? `\nWorkflow: ${env('GITHUB_SERVER_URL')}/${env('GITHUB_REPOSITORY')}/actions/runs/${env('GITHUB_RUN_ID')}`
+      ? `\nWorkflow run (Actions tab → Artifacts → checkdiff-report): ${env('GITHUB_SERVER_URL')}/${env('GITHUB_REPOSITORY')}/actions/runs/${env('GITHUB_RUN_ID')}`
       : '';
-    const body = `${MARKER}\n### CheckDiff Report — ${summary}\n${gapsNote}${prNote}${workflowUrl}\n\n> Full report \`${path.basename(reportPath)}\` is uploaded as a **workflow artifact** (\`checkdiff-report\`) on this run. Download it from the Actions tab.\n\n*Work item:* ${wi.url || `${repo}#${numeric}`} — ${wi.title || ''}\n${MARKER_END}`;
+    const artifactHint = workflowUrl
+      ? `**How to find it:** open the workflow run above → scroll to **Artifacts** at the bottom → download \`checkdiff-report\` (contains \`checkdiff-report.html\`).`
+      : 'Artifact: `checkdiff-report` on this workflow run (Actions tab → run → Artifacts).';
+    const body = `${MARKER}\n### 🔍 CheckDiff Report — ${summary}\n${gapsNote}${prNote}\n${workflowUrl}\n${artifactHint}\n\n*Work item:* ${wi.url || `${repo}#${numeric}`} — ${wi.title || ''}\n${MARKER_END}`;
     const postRes = await fetch(`https://api.github.com/repos/${repo}/issues/${numeric}/comments`, {
       method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify({ body }),
     });
